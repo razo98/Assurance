@@ -26,7 +26,6 @@ app.use('/api/categories', require('./routes/categories'));
 app.use('/api/reclamations', require('./routes/reclamations'));
 app.use('/api/statistics', require('./routes/statistics'));
 app.use('/api/prix', require('./routes/prix'));
-app.use('/api/ocr', require('./routes/ocr'));
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI)
