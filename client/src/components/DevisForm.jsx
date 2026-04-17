@@ -225,18 +225,21 @@ export default function DevisForm({ mode = 'client' }) {
           <div className="devis-section-title">
             <i className="fas fa-car"></i> Informations du véhicule
             <span style={{ fontSize: 11, color: '#888', fontWeight: 400, marginLeft: 8 }}>(conformes à la carte grise)</span>
-            <button type="button" onClick={() => setShowAddBrand(true)}
-              style={{ marginLeft: 'auto', background: '#FF8C00', border: 'none', color: 'white', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', fontSize: 13 }}>
-              <i className="fas fa-plus"></i>
-            </button>
           </div>
           <div className="row g-3">
             <div className="col-md-6">
-              <div className="form-group"><label>Marque *</label>
-                <select className="form-control-custom" name="id_voiture" value={form.id_voiture} onChange={handleChange} required>
-                  <option value="">-- Sélectionner --</option>
-                  {voitures.map(v => <option key={v._id} value={v._id}>{v.marque}</option>)}
-                </select>
+              <div className="form-group">
+                <label>Marque *</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <select className="form-control-custom" name="id_voiture" value={form.id_voiture} onChange={handleChange} required style={{ flex: 1 }}>
+                    <option value="">-- Sélectionner --</option>
+                    {voitures.map(v => <option key={v._id} value={v._id}>{v.marque}</option>)}
+                  </select>
+                  <button type="button" onClick={() => setShowAddBrand(true)} title="Ajouter une marque"
+                    style={{ background: '#FF8C00', border: 'none', color: 'white', borderRadius: 8, width: 38, flexShrink: 0, cursor: 'pointer', fontSize: 15 }}>
+                    <i className="fas fa-plus"></i>
+                  </button>
+                </div>
               </div>
             </div>
             <div className="col-md-6">
