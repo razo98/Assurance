@@ -84,6 +84,10 @@ router.post('/', protect, async (req, res) => {
       nom_assure
     } = req.body;
 
+    if (!nom_assure && !clients && !prenom_client) {
+      return res.status(400).json({ message: 'Le nom de l\'assuré est obligatoire.' });
+    }
+
     // Calcul du prix
     const cat = await Categorie.findById(id_categorie);
     const genre = cat ? cat.genre : '';

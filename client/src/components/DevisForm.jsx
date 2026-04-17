@@ -1,27 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
-import CarteGriseScanner from './CarteGriseScanner';
 
 const QUARTIERS = ['Francophonie','Bobiel','Sonuci','Tchangarey','Ryad','Dar As Salam','Plateau','Recasement','Cite Chinoise'];
 
-// Composant réutilisable pour admin, agent et client
 export default function DevisForm({ mode = 'client' }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const fileRef = useRef();
 
   const [voitures, setVoitures] = useState([]);
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
-    prenom_client: '', nom_client: '', telephone: user?.number || '',
+    nom_assure: '', telephone: '',
     id_voiture: '', id_categorie: '', immatriculation: '', quartier: '',
     puissance: '', nombre_place: '', energie: '', nombre_mois: '', date_debut: '',
     valider: '0', mode_paiement: '', code_transaction: '',
-    clients: mode === 'client' ? `${user?.firstname || ''} ${user?.lastname || ''}`.trim() : '',
-    nom_assure: ''
   });
   const [carteGriseFile, setCarteGriseFile] = useState(null);
+  const [carteGrisePreview, setCarteGrisePreview] = useState(null);
 
   const [prix, setPrix] = useState(null);
   const [prixHT, setPrixHT] = useState(null);
@@ -31,8 +29,6 @@ export default function DevisForm({ mode = 'client' }) {
   const [newMarque, setNewMarque] = useState('');
   const [error, setError] = useState('');
   const [puissanceHelp, setPuissanceHelp] = useState('');
-  const [showScanner, setShowScanner] = useState(false);
-  const [scanMarqueManquante, setScanMarqueManquante] = useState('');
 
   useEffect(() => {
     Promise.all([api.get('/voitures'), api.get('/categories')])
@@ -47,6 +43,14 @@ export default function DevisForm({ mode = 'client' }) {
       name === 'id_categorie' ? value : form.id_categorie,
       name === 'energie' ? value : form.energie
     );
+  };
+
+  const handleCarteGriseFile = f => {
+    if (!f || !f.type.startsWith('image/')) return;
+    setCarteGriseFile(f);
+    const reader = new FileReader();
+    reader.onload = e => setCarteGrisePreview(e.target.result);
+    reader.readAsDataURL(f);
   };
 
   const updatePuissanceHelp = (catId, energie) => {
@@ -67,40 +71,23 @@ export default function DevisForm({ mode = 'client' }) {
   const calculerPrix = async () => {
     const { id_categorie, energie, puissance, nombre_mois } = form;
     if (!id_categorie || energie === '' || !puissance || !nombre_mois) {
-      setError('Remplissez catégorie, énergie, puissance et durée.');
-      return false;
+      setError('Remplissez catégorie, énergie, puissance et durée.'); return false;
     }
     const cat = categories.find(c => c._id === id_categorie);
-    const genre = cat ? cat.genre : '';
     setLoading(true);
     try {
-      const { data } = await api.get(`/prix/calculer?genre=${encodeURIComponent(genre)}&energie=${energie}&puissance=${puissance}&nombre_mois=${nombre_mois}`);
-      if (data.success) {
-        setPrix(data.prix);
-        setPrixHT(data.prix_ht);
-        return true;
-      } else {
-        setError(data.message);
-        return false;
-      }
-    } catch {
-      setError('Erreur lors du calcul du prix.');
-      return false;
-    } finally {
-      setLoading(false);
-    }
+      const { data } = await api.get(`/prix/calculer?genre=${encodeURIComponent(cat?.genre || '')}&energie=${energie}&puissance=${puissance}&nombre_mois=${nombre_mois}`);
+      if (data.success) { setPrix(data.prix); setPrixHT(data.prix_ht); return true; }
+      setError(data.message); return false;
+    } catch { setError('Erreur lors du calcul du prix.'); return false; }
+    finally { setLoading(false); }
   };
 
   const handleCalculer = async e => {
     e.preventDefault();
     setError('');
-
-    // Validation champs obligatoires
-    const required = ['id_voiture','id_categorie','immatriculation','quartier','puissance','nombre_place','energie','nombre_mois','date_debut'];
-    if (mode !== 'client') required.push('prenom_client','nom_client','telephone');
-    const missing = required.filter(k => !form[k]);
-    if (missing.length) { setError('Veuillez remplir tous les champs obligatoires.'); return; }
-
+    const required = ['nom_assure','telephone','id_voiture','id_categorie','immatriculation','quartier','puissance','nombre_place','energie','nombre_mois','date_debut'];
+    if (required.some(k => !form[k])) { setError('Veuillez remplir tous les champs obligatoires.'); return; }
     const ok = await calculerPrix();
     if (ok) setShowModal(true);
   };
@@ -111,13 +98,11 @@ export default function DevisForm({ mode = 'client' }) {
     }
     setLoading(true);
     try {
-      const payload = { ...form };
-      if (mode === 'client') {
-        payload.clients = `${user?.firstname} ${user?.lastname}`;
-        payload.telephone = form.telephone || user?.number;
-      } else {
-        payload.clients = `${form.prenom_client} ${form.nom_client}`;
-      }
+      const payload = {
+        ...form,
+        clients: form.nom_assure, // compatibilité avec le reste de l'app
+        iduser: mode === 'client' ? user?.id : undefined,
+      };
       const { data: created } = await api.post('/assurances', payload);
 
       // Upload carte grise si présente
@@ -128,9 +113,7 @@ export default function DevisForm({ mode = 'client' }) {
           await api.post(`/assurances/${created._id}/carte-grise`, fd, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
-        } catch {
-          // Non bloquant — l'assurance est créée même si l'upload échoue
-        }
+        } catch { /* non bloquant */ }
       }
 
       if (mode === 'admin') navigate('/admin/assurances');
@@ -139,9 +122,7 @@ export default function DevisForm({ mode = 'client' }) {
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de la soumission.');
       setShowModal(false);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const handleAddBrand = async e => {
@@ -154,24 +135,6 @@ export default function DevisForm({ mode = 'client' }) {
     } catch (err) { alert(err.response?.data?.message || 'Erreur'); }
   };
 
-  const handleScanApply = (data) => {
-    setScanMarqueManquante('');
-    if (data._file) setCarteGriseFile(data._file);
-    setForm(f => ({
-      ...f,
-      immatriculation: data.immatriculation || f.immatriculation,
-      id_voiture:      data.id_voiture      || f.id_voiture,
-      puissance:       data.puissance       || f.puissance,
-      energie:         data.energie !== ''  ? data.energie : f.energie,
-      nombre_place:    data.nombre_place    || f.nombre_place,
-      nom_assure:      data.nom_assure      || f.nom_assure,
-    }));
-    if (data._marque_scan && !data.id_voiture) {
-      setScanMarqueManquante(data._marque_scan);
-    }
-    setShowScanner(false);
-  };
-
   const today = new Date().toISOString().split('T')[0];
   const catSelected = categories.find(c => c._id === form.id_categorie);
   const marqueSelected = voitures.find(v => v._id === form.id_voiture);
@@ -180,93 +143,88 @@ export default function DevisForm({ mode = 'client' }) {
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       {error && <div className="alert-custom alert-error"><i className="fas fa-exclamation-circle me-2"></i>{error}</div>}
 
-      {/* Bouton scanner carte grise */}
-      <div style={{ marginBottom: 20 }}>
-        <button type="button" onClick={() => setShowScanner(s => !s)}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, background: showScanner ? '#006652' : 'linear-gradient(to right,#006652,#008a6e)', color: 'white', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,102,82,0.25)', transition: 'all 0.2s' }}>
-          <i className="fas fa-id-card"></i>
-          {showScanner ? 'Masquer le scanner' : 'Scanner la carte grise (auto-remplissage)'}
-          <i className={`fas fa-chevron-${showScanner ? 'up' : 'down'}`} style={{ fontSize: 11, marginLeft: 4 }}></i>
-        </button>
-      </div>
-
-      {showScanner && (
-        <CarteGriseScanner voitures={voitures} onApply={handleScanApply} />
-      )}
-
-      {scanMarqueManquante && (
-        <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#7c5e00', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <i className="fas fa-info-circle" style={{ color: '#FF8C00' }}></i>
-          La marque <strong>"{scanMarqueManquante}"</strong> n'existe pas encore dans la liste. Sélectionnez-la manuellement ou ajoutez-la.
-        </div>
-      )}
-
       <form onSubmit={handleCalculer}>
-        {/* Section 1 : Infos client */}
+
+        {/* ── Section 1 : Assuré ── */}
         <div className="devis-section">
-          <div className="devis-section-title"><i className="fas fa-user"></i> Informations client</div>
+          <div className="devis-section-title"><i className="fas fa-user"></i> Informations de l'assuré</div>
+          <div style={{ background: '#f0f9f6', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, color: '#555', border: '1px solid #c3e6d8' }}>
+            <i className="fas fa-info-circle me-1" style={{ color: '#006652' }}></i>
+            Tous les champs doivent être renseignés <strong>exactement comme sur la carte grise</strong>.
+          </div>
           <div className="row g-3">
-            {mode === 'client' ? (
-              <>
-                <div className="col-md-6">
-                  <div className="form-group"><label>Nom complet</label>
-                    <input className="form-control-custom" value={`${user?.firstname} ${user?.lastname}`} readOnly />
-                  </div>
-                </div>
-                <div className="col-md-6">
-                  <div className="form-group"><label>Téléphone *</label>
-                    <input className="form-control-custom" name="telephone" value={form.telephone} onChange={handleChange} required />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="col-md-4">
-                  <div className="form-group"><label>Prénom du client *</label>
-                    <input className="form-control-custom" name="prenom_client" value={form.prenom_client} onChange={handleChange} required />
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div className="form-group"><label>Nom du client *</label>
-                    <input className="form-control-custom" name="nom_client" value={form.nom_client} onChange={handleChange} required />
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div className="form-group"><label>Téléphone *</label>
-                    <input className="form-control-custom" name="telephone" value={form.telephone} onChange={handleChange} required />
-                  </div>
-                </div>
-              </>
-            )}
-            {/* Nom assuré — toujours visible, auto-rempli depuis la carte grise */}
-            <div className="col-12">
-              <div className="form-group" style={{ background: '#f0f9f6', borderRadius: 8, padding: '12px 14px', border: '1px solid #c3e6d8' }}>
-                <label style={{ fontWeight: 700, color: '#006652', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <i className="fas fa-id-card"></i>
-                  Nom de l'assuré (tel que sur la carte grise) *
-                </label>
+            <div className="col-md-8">
+              <div className="form-group">
+                <label>Nom complet de l'assuré * <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>(tel que sur la carte grise)</span></label>
                 <input
                   className="form-control-custom"
                   name="nom_assure"
                   value={form.nom_assure}
                   onChange={handleChange}
-                  placeholder="Ex : BARIBOU MAHAMANE — sera affiché sur l'attestation"
+                  placeholder="Ex : BARIBOU MAHAMANE"
+                  style={{ textTransform: 'uppercase' }}
                   required
-                  style={{ marginTop: 6 }}
                 />
-                <div style={{ fontSize: 11.5, color: '#888', marginTop: 4 }}>
-                  <i className="fas fa-info-circle me-1" style={{ color: '#006652' }}></i>
-                  Ce nom apparaîtra sur l'attestation. Auto-rempli si vous scannez la carte grise.
+              </div>
+            </div>
+            <div className="col-md-4">
+              <div className="form-group">
+                <label>Téléphone *</label>
+                <input
+                  className="form-control-custom"
+                  name="telephone"
+                  value={form.telephone}
+                  onChange={handleChange}
+                  placeholder="+227 XX XX XX XX"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Upload carte grise */}
+            <div className="col-12">
+              <div className="form-group">
+                <label style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="fas fa-id-card" style={{ color: '#006652' }}></i>
+                  Photo de la carte grise
+                  <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>(facultatif — pour vérification)</span>
+                </label>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 6 }}>
+                  <div
+                    onClick={() => fileRef.current.click()}
+                    style={{
+                      width: 160, minHeight: 90, border: '2px dashed #bbb', borderRadius: 8,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', background: '#fafafa', gap: 6, overflow: 'hidden', flexShrink: 0
+                    }}
+                  >
+                    {carteGrisePreview
+                      ? <img src={carteGrisePreview} alt="carte grise" style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6 }} />
+                      : <>
+                          <i className="fas fa-camera" style={{ fontSize: 22, color: '#bbb' }}></i>
+                          <span style={{ fontSize: 11, color: '#999', textAlign: 'center', padding: '0 6px' }}>Cliquer pour importer</span>
+                        </>
+                    }
+                  </div>
+                  {carteGrisePreview && (
+                    <button type="button" onClick={() => { setCarteGriseFile(null); setCarteGrisePreview(null); }}
+                      style={{ background: 'none', border: '1px solid #ddd', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: '#888', alignSelf: 'flex-start', marginTop: 4 }}>
+                      <i className="fas fa-times me-1"></i>Supprimer
+                    </button>
+                  )}
                 </div>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+                  onChange={e => handleCarteGriseFile(e.target.files[0])} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Section 2 : Infos véhicule */}
+        {/* ── Section 2 : Véhicule ── */}
         <div className="devis-section">
           <div className="devis-section-title">
             <i className="fas fa-car"></i> Informations du véhicule
+            <span style={{ fontSize: 11, color: '#888', fontWeight: 400, marginLeft: 8 }}>(conformes à la carte grise)</span>
             <button type="button" onClick={() => setShowAddBrand(true)}
               style={{ marginLeft: 'auto', background: '#FF8C00', border: 'none', color: 'white', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', fontSize: 13 }}>
               <i className="fas fa-plus"></i>
@@ -274,7 +232,7 @@ export default function DevisForm({ mode = 'client' }) {
           </div>
           <div className="row g-3">
             <div className="col-md-6">
-              <div className="form-group"><label>Marque du véhicule *</label>
+              <div className="form-group"><label>Marque *</label>
                 <select className="form-control-custom" name="id_voiture" value={form.id_voiture} onChange={handleChange} required>
                   <option value="">-- Sélectionner --</option>
                   {voitures.map(v => <option key={v._id} value={v._id}>{v.marque}</option>)}
@@ -291,23 +249,26 @@ export default function DevisForm({ mode = 'client' }) {
             </div>
             <div className="col-md-4">
               <div className="form-group"><label>Immatriculation *</label>
-                <input className="form-control-custom" name="immatriculation" value={form.immatriculation} onChange={handleChange} placeholder="NI-1234-AB" required />
+                <input className="form-control-custom" name="immatriculation" value={form.immatriculation}
+                  onChange={handleChange} placeholder="Ex : BA-2261" style={{ textTransform: 'uppercase' }} required />
               </div>
             </div>
             <div className="col-md-4">
               <div className="form-group">
-                <label>Puissance (CV) *</label>
-                <input type="number" className="form-control-custom" name="puissance" value={form.puissance} onChange={handleChange} min={0} required />
+                <label>Puissance fiscale (CV) *</label>
+                <input type="number" className="form-control-custom" name="puissance" value={form.puissance}
+                  onChange={handleChange} min={0} placeholder="Ex : 6" required />
                 {puissanceHelp && <small style={{ color: '#006652', fontSize: 11 }}>{puissanceHelp}</small>}
               </div>
             </div>
             <div className="col-md-4">
               <div className="form-group"><label>Nombre de places *</label>
-                <input type="number" className="form-control-custom" name="nombre_place" value={form.nombre_place} onChange={handleChange} min={1} required />
+                <input type="number" className="form-control-custom" name="nombre_place" value={form.nombre_place}
+                  onChange={handleChange} min={1} placeholder="Ex : 5" required />
               </div>
             </div>
             <div className="col-md-6">
-              <div className="form-group"><label>Type de carburant *</label>
+              <div className="form-group"><label>Carburant *</label>
                 <select className="form-control-custom" name="energie" value={form.energie} onChange={handleChange} required>
                   <option value="">-- Sélectionner --</option>
                   <option value="0">Essence</option>
@@ -326,7 +287,7 @@ export default function DevisForm({ mode = 'client' }) {
           </div>
         </div>
 
-        {/* Section 3 : Infos assurance */}
+        {/* ── Section 3 : Assurance ── */}
         <div className="devis-section">
           <div className="devis-section-title"><i className="fas fa-shield-alt"></i> Informations de l'assurance</div>
           <div className="row g-3">
@@ -342,7 +303,8 @@ export default function DevisForm({ mode = 'client' }) {
             </div>
             <div className="col-md-6">
               <div className="form-group"><label>Date de début *</label>
-                <input type="date" className="form-control-custom" name="date_debut" value={form.date_debut} onChange={handleChange} min={today} required />
+                <input type="date" className="form-control-custom" name="date_debut" value={form.date_debut}
+                  onChange={handleChange} min={today} required />
               </div>
             </div>
             {mode !== 'client' && (
@@ -363,22 +325,19 @@ export default function DevisForm({ mode = 'client' }) {
             background: loading ? '#999' : 'linear-gradient(to right, #006652, #FF8C00)',
             border: 'none', color: 'white', padding: '14px 48px',
             borderRadius: 32, fontSize: 17, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 6px 20px rgba(0,102,82,0.3)',
-            transition: 'all 0.25s ease',
-            letterSpacing: '0.3px'
+            boxShadow: '0 6px 20px rgba(0,102,82,0.3)', transition: 'all 0.25s ease', letterSpacing: '0.3px'
           }}>
-            {loading ? <><span className="spinner" style={{ marginRight: 8 }}></span>Calcul en cours...</> : <><i className="fas fa-calculator me-2"></i>Calculer le devis</>}
+            {loading ? <><span className="spinner" style={{ marginRight: 8 }}></span>Calcul...</> : <><i className="fas fa-calculator me-2"></i>Calculer le devis</>}
           </button>
         </div>
       </form>
 
-      {/* === MODAL RÉCAPITULATIF + PRIX === */}
+      {/* ── Modal récapitulatif ── */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(3px)' }}>
           <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 540, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 28px 70px rgba(0,0,0,0.35)', animation: 'scaleIn 0.28s ease' }}>
-            {/* Header prix */}
             <div style={{ background: 'linear-gradient(135deg, #004d3d, #006652, #007a60)', color: 'white', padding: '24px 28px', borderRadius: '16px 16px 0 0', textAlign: 'center' }}>
-              <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Prix total à payer (TVA 12% incluse)</div>
+              <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Prix total (TVA 12% incluse)</div>
               <div style={{ fontSize: 44, fontWeight: 800, lineHeight: 1 }}>{prix?.toLocaleString()} <span style={{ fontSize: 22, fontWeight: 600 }}>FCFA</span></div>
               <div style={{ fontSize: 13, opacity: 0.72, marginTop: 8 }}>Prix HT : {prixHT?.toLocaleString()} FCFA</div>
             </div>
@@ -389,17 +348,18 @@ export default function DevisForm({ mode = 'client' }) {
               </h6>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 18px', fontSize: 13.5, marginBottom: 22 }}>
                 {[
-                  ['Client', mode === 'client' ? `${user?.firstname} ${user?.lastname}` : `${form.prenom_client} ${form.nom_client}`],
+                  ['Assuré', form.nom_assure],
                   ['Téléphone', form.telephone],
                   ['Marque', marqueSelected?.marque || '-'],
                   ['Catégorie', catSelected?.genre || '-'],
                   ['Immatriculation', form.immatriculation],
                   ['Puissance', `${form.puissance} CV`],
                   ['Places', form.nombre_place],
-                  ['Énergie', form.energie === '0' ? 'Essence' : 'Gazoil'],
+                  ['Carburant', form.energie === '0' ? 'Essence' : 'Gazoil'],
                   ['Quartier', form.quartier],
                   ['Durée', `${form.nombre_mois} mois`],
                   ['Date début', form.date_debut ? new Date(form.date_debut).toLocaleDateString('fr-FR') : '-'],
+                  ['Carte grise', carteGriseFile ? '✓ Jointe' : '—'],
                 ].map(([k, v]) => (
                   <div key={k} style={{ padding: '8px 10px', borderBottom: '1px solid #f0f2f5', borderRadius: 6 }}>
                     <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{k}</div>
@@ -408,15 +368,13 @@ export default function DevisForm({ mode = 'client' }) {
                 ))}
               </div>
 
-              {/* Section paiement (client uniquement) */}
               {mode === 'client' && (
                 <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 15, marginBottom: 15 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#006652', marginBottom: 10 }}>
                     <i className="fas fa-credit-card me-2"></i>Informations de paiement
                   </div>
                   <div style={{ background: '#e8f5f1', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 12 }}>
-                    <i className="fas fa-phone" style={{ color: '#006652' }}></i>
-                    &nbsp;Numéro de paiement : <strong>+22799897842</strong>
+                    <i className="fas fa-phone" style={{ color: '#006652' }}></i>&nbsp;Numéro de paiement : <strong>+22799897842</strong>
                   </div>
                   <div className="form-group">
                     <label style={{ fontSize: 12, fontWeight: 600 }}>Mode de paiement *</label>
@@ -437,8 +395,7 @@ export default function DevisForm({ mode = 'client' }) {
               <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{
                   flex: 1, padding: '13px', border: '2px solid #e0e0e0', background: 'white',
-                  borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 14.5,
-                  color: '#555', transition: 'all 0.2s'
+                  borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 14.5, color: '#555', transition: 'all 0.2s'
                 }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = '#006652'; e.currentTarget.style.color = '#006652'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0e0e0'; e.currentTarget.style.color = '#555'; }}
@@ -448,8 +405,7 @@ export default function DevisForm({ mode = 'client' }) {
                 <button type="button" onClick={handleConfirm} disabled={loading} style={{
                   flex: 2, padding: '13px', background: loading ? '#aaa' : 'linear-gradient(to right, #28a745, #20923a)',
                   border: 'none', color: 'white', borderRadius: 10, cursor: loading ? 'not-allowed' : 'pointer',
-                  fontWeight: 700, fontSize: 14.5, boxShadow: '0 4px 14px rgba(40,167,69,0.3)',
-                  transition: 'all 0.2s'
+                  fontWeight: 700, fontSize: 14.5, boxShadow: '0 4px 14px rgba(40,167,69,0.3)', transition: 'all 0.2s'
                 }}>
                   {loading ? <><span className="spinner" style={{ marginRight: 8 }}></span>Enregistrement...</> : <><i className="fas fa-check-circle me-2"></i>Confirmer et valider</>}
                 </button>
