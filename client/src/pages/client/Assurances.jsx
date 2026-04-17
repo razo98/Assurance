@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import ClientSidebar from '../../components/ClientSidebar';
 import Topbar from '../../components/Topbar';
+import AttestationModal from '../../components/AttestationModal';
 import api from '../../api/axios';
 
 const STATUS_BADGE = {
@@ -13,6 +14,7 @@ export default function ClientAssurances() {
   const [assurances, setAssurances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [attestation, setAttestation] = useState(null);
 
   const load = () => { setLoading(true); api.get('/assurances').then(r => setAssurances(r.data)).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, []);
@@ -33,7 +35,7 @@ export default function ClientAssurances() {
             <div className="table-responsive">
               <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
                 <thead style={{ background: '#f8f9fa' }}>
-                  <tr><th>#</th><th>Immatriculation</th><th>Marque</th><th>Catégorie</th><th>Prix TTC</th><th>Début</th><th>Fin</th><th>Statut</th><th>Détails</th></tr>
+                  <tr><th>#</th><th>Immatriculation</th><th>Marque</th><th>Catégorie</th><th>Prix TTC</th><th>Début</th><th>Fin</th><th>Statut</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                   {loading ? <tr><td colSpan={9} className="text-center p-4">Chargement...</td></tr> :
@@ -49,9 +51,16 @@ export default function ClientAssurances() {
                       <td>{a.date_fin ? new Date(a.date_fin).toLocaleDateString('fr-FR') : '-'}</td>
                       <td><span className={STATUS_BADGE[a.status] || 'badge-attente'}>{a.status}</span></td>
                       <td>
-                        <button className="btn btn-sm btn-outline-primary" onClick={() => setSelected(a)}>
-                          <i className="fas fa-eye"></i>
-                        </button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="btn btn-sm btn-outline-secondary" title="Détails" onClick={() => setSelected(a)}>
+                            <i className="fas fa-info-circle"></i>
+                          </button>
+                          <button className="btn btn-sm" title="Attestation" disabled={!a.valider}
+                            style={{ background: a.valider ? 'linear-gradient(to right,#006652,#008a6e)' : '#ddd', color: a.valider ? 'white' : '#aaa', border: 'none', borderRadius: 4, cursor: a.valider ? 'pointer' : 'not-allowed', fontSize: 12, padding: '4px 10px' }}
+                            onClick={() => a.valider && setAttestation(a)}>
+                            <i className="fas fa-file-alt me-1"></i>Attestation
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -61,6 +70,8 @@ export default function ClientAssurances() {
           </div>
         </div>
       </div>
+
+      {attestation && <AttestationModal assurance={attestation} onClose={() => setAttestation(null)} />}
 
       {selected && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>

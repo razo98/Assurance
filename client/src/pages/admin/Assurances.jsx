@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminSidebar from '../../components/AdminSidebar';
 import Topbar from '../../components/Topbar';
+import AttestationModal from '../../components/AttestationModal';
 import api from '../../api/axios';
 
 const STATUS_BADGE = {
@@ -16,6 +17,7 @@ export default function AdminAssurances() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [attestation, setAttestation] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -60,7 +62,7 @@ export default function AdminAssurances() {
                 <thead style={{ background: '#f8f9fa' }}>
                   <tr>
                     <th>#</th><th>Client</th><th>Immatriculation</th><th>Catégorie</th>
-                    <th>Prix TTC</th><th>Début</th><th>Fin</th><th>Statut</th><th>Actions</th>
+                    <th>Prix TTC</th><th>Début</th><th>Fin</th><th>Statut</th><th>Aperçu</th><th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -75,6 +77,13 @@ export default function AdminAssurances() {
                       <td>{a.date_debut ? new Date(a.date_debut).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>{a.date_fin ? new Date(a.date_fin).toLocaleDateString('fr-FR') : '-'}</td>
                       <td><span className={STATUS_BADGE[a.status] || 'badge-attente'}>{a.status}</span></td>
+                      <td>
+                        <button className="btn btn-xs" title="Voir l'attestation" disabled={!a.valider}
+                          style={{ fontSize: 11, padding: '2px 8px', background: a.valider ? 'linear-gradient(to right,#006652,#008a6e)' : '#ddd', color: a.valider ? 'white' : '#aaa', border: 'none', borderRadius: 4, cursor: a.valider ? 'pointer' : 'not-allowed' }}
+                          onClick={() => a.valider && setAttestation(a)}>
+                          <i className="fas fa-eye me-1"></i>Aperçu
+                        </button>
+                      </td>
                       <td>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                           {a.status === 'En attente' && (
@@ -107,6 +116,7 @@ export default function AdminAssurances() {
           </div>
         </div>
       </div>
+      {attestation && <AttestationModal assurance={attestation} onClose={() => setAttestation(null)} />}
     </div>
   );
 }

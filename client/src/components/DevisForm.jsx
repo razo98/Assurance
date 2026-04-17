@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
+import CarteGriseScanner from './CarteGriseScanner';
 
 const QUARTIERS = ['Francophonie','Bobiel','Sonuci','Tchangarey','Ryad','Dar As Salam','Plateau','Recasement','Cite Chinoise'];
 
@@ -28,6 +29,8 @@ export default function DevisForm({ mode = 'client' }) {
   const [newMarque, setNewMarque] = useState('');
   const [error, setError] = useState('');
   const [puissanceHelp, setPuissanceHelp] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanMarqueManquante, setScanMarqueManquante] = useState('');
 
   useEffect(() => {
     Promise.all([api.get('/voitures'), api.get('/categories')])
@@ -135,6 +138,22 @@ export default function DevisForm({ mode = 'client' }) {
     } catch (err) { alert(err.response?.data?.message || 'Erreur'); }
   };
 
+  const handleScanApply = (data) => {
+    setScanMarqueManquante('');
+    setForm(f => ({
+      ...f,
+      immatriculation: data.immatriculation || f.immatriculation,
+      id_voiture:      data.id_voiture      || f.id_voiture,
+      puissance:       data.puissance       || f.puissance,
+      energie:         data.energie !== ''  ? data.energie : f.energie,
+      nombre_place:    data.nombre_place    || f.nombre_place,
+    }));
+    if (data._marque_scan && !data.id_voiture) {
+      setScanMarqueManquante(data._marque_scan);
+    }
+    setShowScanner(false);
+  };
+
   const today = new Date().toISOString().split('T')[0];
   const catSelected = categories.find(c => c._id === form.id_categorie);
   const marqueSelected = voitures.find(v => v._id === form.id_voiture);
@@ -142,6 +161,27 @@ export default function DevisForm({ mode = 'client' }) {
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       {error && <div className="alert-custom alert-error"><i className="fas fa-exclamation-circle me-2"></i>{error}</div>}
+
+      {/* Bouton scanner carte grise */}
+      <div style={{ marginBottom: 20 }}>
+        <button type="button" onClick={() => setShowScanner(s => !s)}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, background: showScanner ? '#006652' : 'linear-gradient(to right,#006652,#008a6e)', color: 'white', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,102,82,0.25)', transition: 'all 0.2s' }}>
+          <i className="fas fa-id-card"></i>
+          {showScanner ? 'Masquer le scanner' : 'Scanner la carte grise (auto-remplissage)'}
+          <i className={`fas fa-chevron-${showScanner ? 'up' : 'down'}`} style={{ fontSize: 11, marginLeft: 4 }}></i>
+        </button>
+      </div>
+
+      {showScanner && (
+        <CarteGriseScanner voitures={voitures} onApply={handleScanApply} />
+      )}
+
+      {scanMarqueManquante && (
+        <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#7c5e00', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <i className="fas fa-info-circle" style={{ color: '#FF8C00' }}></i>
+          La marque <strong>"{scanMarqueManquante}"</strong> n'existe pas encore dans la liste. Sélectionnez-la manuellement ou ajoutez-la.
+        </div>
+      )}
 
       <form onSubmit={handleCalculer}>
         {/* Section 1 : Infos client */}

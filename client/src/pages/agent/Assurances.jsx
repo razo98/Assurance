@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AgentSidebar from '../../components/AgentSidebar';
 import Topbar from '../../components/Topbar';
+import AttestationModal from '../../components/AttestationModal';
 import api from '../../api/axios';
 
 const STATUS_BADGE = {
@@ -13,6 +14,7 @@ export default function AgentAssurances() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [attestation, setAttestation] = useState(null);
 
   const load = () => { setLoading(true); api.get('/assurances').then(r => setAssurances(r.data)).finally(() => setLoading(false)); };
   useEffect(() => { load(); }, []);
@@ -48,7 +50,7 @@ export default function AgentAssurances() {
             <div className="table-responsive">
               <table className="table table-hover mb-0" style={{ fontSize: 13 }}>
                 <thead style={{ background: '#f8f9fa' }}>
-                  <tr><th>#</th><th>Client</th><th>Immatriculation</th><th>Catégorie</th><th>Prix TTC</th><th>Statut</th><th>Actions</th></tr>
+                  <tr><th>#</th><th>Client</th><th>Immatriculation</th><th>Catégorie</th><th>Prix TTC</th><th>Statut</th><th>Aperçu</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                   {loading ? <tr><td colSpan={7} className="text-center p-4">Chargement...</td></tr> :
@@ -60,6 +62,13 @@ export default function AgentAssurances() {
                       <td>{a.id_categorie?.genre || '-'}</td>
                       <td><strong>{(a.prix_ttc || 0).toLocaleString()} FCFA</strong></td>
                       <td><span className={STATUS_BADGE[a.status] || 'badge-attente'}>{a.status}</span></td>
+                      <td>
+                        <button className="btn btn-xs" title="Voir l'attestation" disabled={!a.valider}
+                          style={{ fontSize: 11, padding: '2px 8px', background: a.valider ? 'linear-gradient(to right,#006652,#008a6e)' : '#ddd', color: a.valider ? 'white' : '#aaa', border: 'none', borderRadius: 4, cursor: a.valider ? 'pointer' : 'not-allowed' }}
+                          onClick={() => a.valider && setAttestation(a)}>
+                          <i className="fas fa-eye me-1"></i>Aperçu
+                        </button>
+                      </td>
                       <td>
                         <div style={{ display: 'flex', gap: 3 }}>
                           {a.status === 'En attente' && <button className="btn btn-xs btn-success" style={{ fontSize: 11, padding: '2px 7px' }} onClick={() => action(a._id, 'valider')}><i className="fas fa-check"></i></button>}
@@ -76,6 +85,7 @@ export default function AgentAssurances() {
           </div>
         </div>
       </div>
+      {attestation && <AttestationModal assurance={attestation} onClose={() => setAttestation(null)} />}
     </div>
   );
 }
