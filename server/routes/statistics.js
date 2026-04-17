@@ -116,6 +116,7 @@ router.get('/advanced', protect, isAdmin, async (req, res) => {
     }
 
     const data = await Assurance.aggregate(pipeline);
+    console.log(`[Stats] type=${type} → ${data.length} résultats:`, JSON.stringify(data));
     res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
