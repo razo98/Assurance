@@ -88,6 +88,7 @@ export default function DevisForm({ mode = 'client' }) {
     setError('');
     const required = ['nom_assure','telephone','id_voiture','id_categorie','immatriculation','quartier','puissance','nombre_place','energie','nombre_mois','date_debut'];
     if (required.some(k => !form[k])) { setError('Veuillez remplir tous les champs obligatoires.'); return; }
+    if (!carteGriseFile) { setError('La photo de la carte grise est obligatoire.'); return; }
     const ok = await calculerPrix();
     if (ok) setShowModal(true);
   };
@@ -186,8 +187,7 @@ export default function DevisForm({ mode = 'client' }) {
               <div className="form-group">
                 <label style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <i className="fas fa-id-card" style={{ color: '#006652' }}></i>
-                  Photo de la carte grise
-                  <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>(facultatif — pour vérification)</span>
+                  Photo de la carte grise *
                 </label>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 6 }}>
                   <div
