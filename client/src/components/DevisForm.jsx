@@ -18,8 +18,10 @@ export default function DevisForm({ mode = 'client' }) {
     id_voiture: '', id_categorie: '', immatriculation: '', quartier: '',
     puissance: '', nombre_place: '', energie: '', nombre_mois: '', date_debut: '',
     valider: '0', mode_paiement: '', code_transaction: '',
-    clients: mode === 'client' ? `${user?.firstname || ''} ${user?.lastname || ''}`.trim() : ''
+    clients: mode === 'client' ? `${user?.firstname || ''} ${user?.lastname || ''}`.trim() : '',
+    nom_assure: ''
   });
+  const [carteGriseFile, setCarteGriseFile] = useState(null);
 
   const [prix, setPrix] = useState(null);
   const [prixHT, setPrixHT] = useState(null);
@@ -116,7 +118,21 @@ export default function DevisForm({ mode = 'client' }) {
       } else {
         payload.clients = `${form.prenom_client} ${form.nom_client}`;
       }
-      await api.post('/assurances', payload);
+      const { data: created } = await api.post('/assurances', payload);
+
+      // Upload carte grise si présente
+      if (carteGriseFile && created._id) {
+        try {
+          const fd = new FormData();
+          fd.append('carte_grise', carteGriseFile);
+          await api.post(`/assurances/${created._id}/carte-grise`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+        } catch {
+          // Non bloquant — l'assurance est créée même si l'upload échoue
+        }
+      }
+
       if (mode === 'admin') navigate('/admin/assurances');
       else if (mode === 'agent') navigate('/agent/assurances');
       else navigate('/client/assurances');
@@ -140,6 +156,7 @@ export default function DevisForm({ mode = 'client' }) {
 
   const handleScanApply = (data) => {
     setScanMarqueManquante('');
+    if (data._file) setCarteGriseFile(data._file);
     setForm(f => ({
       ...f,
       immatriculation: data.immatriculation || f.immatriculation,
@@ -147,6 +164,7 @@ export default function DevisForm({ mode = 'client' }) {
       puissance:       data.puissance       || f.puissance,
       energie:         data.energie !== ''  ? data.energie : f.energie,
       nombre_place:    data.nombre_place    || f.nombre_place,
+      nom_assure:      data.nom_assure      || f.nom_assure,
     }));
     if (data._marque_scan && !data.id_voiture) {
       setScanMarqueManquante(data._marque_scan);
@@ -220,6 +238,28 @@ export default function DevisForm({ mode = 'client' }) {
                 </div>
               </>
             )}
+            {/* Nom assuré — toujours visible, auto-rempli depuis la carte grise */}
+            <div className="col-12">
+              <div className="form-group" style={{ background: '#f0f9f6', borderRadius: 8, padding: '12px 14px', border: '1px solid #c3e6d8' }}>
+                <label style={{ fontWeight: 700, color: '#006652', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="fas fa-id-card"></i>
+                  Nom de l'assuré (tel que sur la carte grise) *
+                </label>
+                <input
+                  className="form-control-custom"
+                  name="nom_assure"
+                  value={form.nom_assure}
+                  onChange={handleChange}
+                  placeholder="Ex : BARIBOU MAHAMANE — sera affiché sur l'attestation"
+                  required
+                  style={{ marginTop: 6 }}
+                />
+                <div style={{ fontSize: 11.5, color: '#888', marginTop: 4 }}>
+                  <i className="fas fa-info-circle me-1" style={{ color: '#006652' }}></i>
+                  Ce nom apparaîtra sur l'attestation. Auto-rempli si vous scannez la carte grise.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

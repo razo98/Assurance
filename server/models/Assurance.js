@@ -27,7 +27,9 @@ const assuranceSchema = new mongoose.Schema({
   mode_paiement:  { type: String, default: '' },
   code_transaction:{ type: String, default: '' },
   resiliation:    { type: Boolean, default: false },
-  suspension:     { type: Boolean, default: false }
+  suspension:     { type: Boolean, default: false },
+  nom_assure:     { type: String, default: '' },  // nom tel qu'il figure sur la carte grise
+  carte_grise:    { type: String, default: '' }   // chemin vers l'image de la carte grise
 }, { timestamps: true });
 
 module.exports = mongoose.model('Assurance', assuranceSchema);

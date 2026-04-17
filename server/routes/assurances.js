@@ -1,10 +1,29 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const multer = require('multer');
 const Assurance = require('../models/Assurance');
 const Categorie = require('../models/Categorie');
 const Admin = require('../models/Admin');
 const { protect, isAdmin, isAdminOrAgent } = require('../middleware/auth');
 const { calculerPrixHT } = require('./prix');
+
+// Multer — stockage cartes grises
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads/cartes-grises')),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `cg_${req.params.id}_${Date.now()}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('Image uniquement.'));
+    cb(null, true);
+  }
+});
 
 // GET /api/assurances
 router.get('/', protect, async (req, res) => {
@@ -61,7 +80,8 @@ router.post('/', protect, async (req, res) => {
       id_voiture, id_categorie, immatriculation, quartier, puissance,
       nombre_place, energie, nombre_mois, date_debut,
       clients, telephone, mode_paiement, code_transaction,
-      valider, prenom_client, nom_client, iduser: bodyIduser
+      valider, prenom_client, nom_client, iduser: bodyIduser,
+      nom_assure
     } = req.body;
 
     // Calcul du prix
@@ -121,7 +141,8 @@ router.post('/', protect, async (req, res) => {
       agents: agentNom,
       matricule,
       valider: validerBool,
-      status: statusVal
+      status: statusVal,
+      nom_assure: nom_assure || ''
     });
 
     res.status(201).json(assurance);
@@ -248,6 +269,34 @@ router.post('/:id/renouveler', protect, async (req, res) => {
     });
 
     res.status(201).json({ assurance: nouvelle, prix_ttc: new_prix_ttc });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/assurances/:id/carte-grise — upload image
+router.post('/:id/carte-grise', protect, upload.single('carte_grise'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Aucune image fournie.' });
+    const relativePath = `/uploads/cartes-grises/${req.file.filename}`;
+    const assurance = await Assurance.findByIdAndUpdate(
+      req.params.id,
+      { carte_grise: relativePath },
+      { new: true }
+    );
+    if (!assurance) return res.status(404).json({ message: 'Assurance introuvable.' });
+    res.json({ success: true, carte_grise: relativePath });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/assurances/:id/carte-grise — vérifier si image existe
+router.get('/:id/carte-grise', protect, isAdminOrAgent, async (req, res) => {
+  try {
+    const assurance = await Assurance.findById(req.params.id).select('carte_grise nom_assure immatriculation clients');
+    if (!assurance) return res.status(404).json({ message: 'Assurance introuvable.' });
+    res.json({ carte_grise: assurance.carte_grise || null, nom_assure: assurance.nom_assure || '' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

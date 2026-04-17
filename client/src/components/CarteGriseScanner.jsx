@@ -156,7 +156,9 @@ export default function CarteGriseScanner({ onApply, voitures }) {
       puissance:       result.puissance?.toString() || '',
       energie:         result.energie !== null && result.energie !== undefined ? result.energie.toString() : '',
       nombre_place:    result.nombre_place?.toString() || '',
+      nom_assure:      result.nom_proprietaire || '',
       _marque_scan:    result.marque || '',
+      _file:           file,  // fichier image pour upload serveur
     });
   };
 

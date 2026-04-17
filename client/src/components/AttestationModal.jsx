@@ -111,7 +111,7 @@ export default function AttestationModal({ assurance: a, onClose }) {
       </div>
       <div class="field-row row-full">
         <span class="field-label">Souscripteur</span>
-        <span class="field-value">${a.clients || '-'}</span>
+        <span class="field-value">${a.nom_assure || a.clients || '-'}</span>
       </div>
       <div class="field-row row-full">
         <span class="field-label">Adresse</span>
@@ -248,7 +248,7 @@ export default function AttestationModal({ assurance: a, onClose }) {
                 {[
                   ['N° de Police', policeNum, false],
                   ['N° Assuré', assureNum, false],
-                  ['Souscripteur', a.clients || '-', true],
+                  ['Souscripteur', a.nom_assure || a.clients || '-', true],
                   ['Adresse', a.quartier || 'Niamey, Niger', true],
                   ['Véhicule Genre', a.id_categorie?.genre || '-', false],
                   ['Marque', a.id_voiture?.marque || '-', false],

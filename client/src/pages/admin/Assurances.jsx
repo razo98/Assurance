@@ -18,6 +18,7 @@ export default function AdminAssurances() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [attestation, setAttestation] = useState(null);
+  const [carteGriseModal, setCarteGriseModal] = useState(null); // { url, nom_assure, immatriculation }
 
   const load = () => {
     setLoading(true);
@@ -78,11 +79,18 @@ export default function AdminAssurances() {
                       <td>{a.date_fin ? new Date(a.date_fin).toLocaleDateString('fr-FR') : '-'}</td>
                       <td><span className={STATUS_BADGE[a.status] || 'badge-attente'}>{a.status}</span></td>
                       <td>
-                        <button className="btn btn-xs" title="Voir l'attestation" disabled={!a.valider}
-                          style={{ fontSize: 11, padding: '2px 8px', background: a.valider ? 'linear-gradient(to right,#006652,#008a6e)' : '#ddd', color: a.valider ? 'white' : '#aaa', border: 'none', borderRadius: 4, cursor: a.valider ? 'pointer' : 'not-allowed' }}
-                          onClick={() => a.valider && setAttestation(a)}>
-                          <i className="fas fa-eye me-1"></i>Aperçu
-                        </button>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <button className="btn btn-xs" title="Voir l'attestation" disabled={!a.valider}
+                            style={{ fontSize: 11, padding: '2px 8px', background: a.valider ? 'linear-gradient(to right,#006652,#008a6e)' : '#ddd', color: a.valider ? 'white' : '#aaa', border: 'none', borderRadius: 4, cursor: a.valider ? 'pointer' : 'not-allowed' }}
+                            onClick={() => a.valider && setAttestation(a)}>
+                            <i className="fas fa-file-alt me-1"></i>Attestation
+                          </button>
+                          <button className="btn btn-xs" title="Voir la carte grise" disabled={!a.carte_grise}
+                            style={{ fontSize: 11, padding: '2px 8px', background: a.carte_grise ? 'linear-gradient(to right,#0d6efd,#0a58ca)' : '#ddd', color: a.carte_grise ? 'white' : '#aaa', border: 'none', borderRadius: 4, cursor: a.carte_grise ? 'pointer' : 'not-allowed' }}
+                            onClick={() => a.carte_grise && setCarteGriseModal({ url: `http://localhost:5000${a.carte_grise}`, nom_assure: a.nom_assure, immatriculation: a.immatriculation })}>
+                            <i className="fas fa-id-card me-1"></i>C. grise
+                          </button>
+                        </div>
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -117,6 +125,39 @@ export default function AdminAssurances() {
         </div>
       </div>
       {attestation && <AttestationModal assurance={attestation} onClose={() => setAttestation(null)} />}
+
+      {carteGriseModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 5000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 560, boxShadow: '0 30px 80px rgba(0,0,0,0.4)', animation: 'scaleIn 0.28s ease' }}>
+            <div style={{ background: 'linear-gradient(to right,#0d6efd,#0a58ca)', color: 'white', padding: '16px 22px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}><i className="fas fa-id-card me-2"></i>Carte grise</div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>{carteGriseModal.immatriculation} — {carteGriseModal.nom_assure || 'Assuré'}</div>
+              </div>
+              <button onClick={() => setCarteGriseModal(null)} style={{ background: 'none', border: 'none', color: 'white', fontSize: 22, cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: 20 }}>
+              <img src={carteGriseModal.url} alt="Carte grise" style={{ width: '100%', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', objectFit: 'contain', maxHeight: 400 }} />
+              {carteGriseModal.nom_assure && (
+                <div style={{ marginTop: 14, background: '#f0f9f6', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>
+                  <i className="fas fa-user me-2" style={{ color: '#006652' }}></i>
+                  <strong>Assuré :</strong> {carteGriseModal.nom_assure}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                <a href={carteGriseModal.url} download target="_blank" rel="noreferrer"
+                  style={{ flex: 1, padding: '10px', background: 'linear-gradient(to right,#0d6efd,#0a58ca)', color: 'white', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}>
+                  <i className="fas fa-download me-1"></i>Télécharger
+                </a>
+                <button onClick={() => setCarteGriseModal(null)}
+                  style={{ flex: 1, padding: '10px', background: '#f0f0f0', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
